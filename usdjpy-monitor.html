@@ -380,13 +380,13 @@ $("notifBtn").onclick = async () => {
 /* ---------- Claude API ---------- */
 function showErr(m){ $("err").textContent = m; }
 
-async function callClaude(system, userText, useSearch){
+async function rawClaude(system, userText, useSearch){
   const key = $("apiKey").value.trim();
   if(!key) throw new Error("APIキーが入っていません。右下の設定に入力してください。");
   let messages = [{role:"user", content:userText}];
   let collected = [];
   for(let turn=0; turn<4; turn++){
-    const body = {model:$("model").value, max_tokens:4000, system, messages};
+    const body = {model:$("model").value, max_tokens:8000, system, messages};
     if(useSearch) body.tools = [{type:"web_search_20250305", name:"web_search", max_uses:6}];
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method:"POST",
@@ -399,13 +399,58 @@ async function callClaude(system, userText, useSearch){
     if(data.stop_reason === "pause_turn"){ messages = [...messages, {role:"assistant", content:data.content}]; continue; }
     break;
   }
-  const text = collected.filter(b=>b.type==="text").map(b=>b.text).join("\n");
-  const s = text.indexOf("{"), e = text.lastIndexOf("}");
-  if(s<0 || e<0) throw new Error("分析結果の形式を読み取れませんでした。もう一度試してください。");
-  return JSON.parse(text.slice(s, e+1).replace(/```json|```/g,""));
+  return finalText(collected);
 }
 
-const SCHEMA = `必ず次のJSONだけを返す（前置き・コードブロック禁止）:
+// 検索結果のあとに書かれた最終回答だけを、区切りを入れずにつなぐ（引用で分割された文章を壊さない）
+function finalText(blocks){
+  let last = -1;
+  blocks.forEach((b,i) => { if(b.type && b.type.endsWith("tool_result")) last = i; });
+  const pick = t => t.filter(b=>b.type==="text").map(b=>b.text).join("");
+  return pick(blocks.slice(last+1)) || pick(blocks);
+}
+
+// 崩れたJSONをできるだけ直して読む
+function parseLoose(t){
+  t = String(t||"").replace(/```json|```/g,"");
+  const s = t.indexOf("{"), e = t.lastIndexOf("}");
+  if(s<0 || e<s) return null;
+  const j = t.slice(s, e+1);
+  try{ return JSON.parse(j); }catch(_){}
+  let out = "", inStr = false, esc = false;
+  for(const ch of j){
+    if(inStr){
+      if(esc){ esc=false; out+=ch; continue; }
+      if(ch==="\\"){ esc=true; out+=ch; continue; }
+      if(ch==='"'){ inStr=false; out+=ch; continue; }
+      if(ch==="\n"){ out+="\\n"; continue; }
+      if(ch==="\r"||ch==="\t"){ out+=" "; continue; }
+      out+=ch;
+    }else{
+      if(ch==='"') inStr=true;
+      out+=ch;
+    }
+  }
+  out = out.replace(/,\s*([\]}])/g,"$1");
+  try{ return JSON.parse(out); }catch(_){ return null; }
+}
+
+async function callClaude(system, userText, useSearch){
+  const text = await rawClaude(system, userText, useSearch);
+  let obj = parseLoose(text);
+  if(obj) return obj;
+  // 形式が崩れていたら、検索なしで整形だけをやり直してもらう（安く速い）
+  const fixed = await rawClaude(
+    "あなたはJSON整形ツール。内容は変えず、有効なJSONだけを返す。文字列の中のダブルクォートは「」に置き換える。",
+    `次の出力を、下のスキーマどおりの有効なJSONに直してください。\n---\n${text.slice(0,15000)}\n---\n${SCHEMA}`,
+    false
+  );
+  obj = parseLoose(fixed);
+  if(obj) return obj;
+  throw new Error("分析結果の形式が崩れていました。もう一度「今すぐチェック」を押してください。");
+}
+
+const SCHEMA = `必ず次のJSONだけを返す（前置き・コードブロック・出典番号の注記は禁止。文字列の中ではダブルクォート " を使わず「」を使う）:
 {
  "usdjpy": {"price": 数値またはnull, "asOf": "ISO8601またはnull"},
  "netBias": -100〜100の整数（+は円安・ドル高圧力、−は円高・ドル安圧力。今の材料全体の綱引き）,
