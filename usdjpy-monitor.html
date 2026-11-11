@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ドル円ウォッチ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9EDF1; --panel:#F7F9FB; --ink:#17212C; --sub:#5A6878; --line:#CBD3DC;
+  --yasu:#B8323A;   /* 円安（ドル高） */
+  --taka:#1F6FB2;   /* 円高（ドル安） */
+  --neutral:#7D8794; --accent:#17212C; --warn:#A86A00;
+  --shadow:0 1px 0 rgba(23,33,44,.06);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121A23; --panel:#19232E; --ink:#E6ECF2; --sub:#93A1B0; --line:#2C3A48;
+    --yasu:#E5656C; --taka:#5BA4E6; --neutral:#8C97A3; --accent:#E6ECF2; --warn:#E0A43A;
+    --shadow:none; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121A23; --panel:#19232E; --ink:#E6ECF2; --sub:#93A1B0; --line:#2C3A48;
+  --yasu:#E5656C; --taka:#5BA4E6; --neutral:#8C97A3; --accent:#E6ECF2; --warn:#E0A43A;
+  --shadow:none; color-scheme:dark;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+  font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--taka);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* header */
+header.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+header.top h1{font-size:20px;font-weight:900;margin:0;letter-spacing:.02em}
+.status{font-size:13px;color:var(--sub);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--neutral);display:inline-block}
+.dot.on{background:#2E9E5B;box-shadow:0 0 0 4px rgba(46,158,91,.18)}
+.dot.busy{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+/* tug of war — the memorable element */
+.tug{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;box-shadow:var(--shadow)}
+.tug-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.price{font-size:44px;font-weight:900;line-height:1;letter-spacing:-.01em}
+.price small{font-size:15px;font-weight:500;color:var(--sub);margin-left:8px}
+.bias-label{font-size:14px;font-weight:700}
+.rope{position:relative;height:34px;margin:18px 0 8px}
+.rope .track{position:absolute;top:15px;left:0;right:0;height:4px;border-radius:2px;
+  background:linear-gradient(90deg,var(--taka),var(--line) 50%,var(--yasu))}
+.rope .mid{position:absolute;left:50%;top:6px;width:2px;height:22px;background:var(--sub);transform:translateX(-1px)}
+.rope .knot{position:absolute;top:5px;width:24px;height:24px;border-radius:50%;background:var(--ink);
+  border:4px solid var(--panel);transform:translateX(-50%);transition:left .9s cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:reduce){.rope .knot{transition:none}}
+.rope-ends{display:flex;justify-content:space-between;font-size:13px;font-weight:700}
+.rope-ends .l{color:var(--taka)} .rope-ends .r{color:var(--yasu)}
+.comment{margin:12px 0 0;font-size:14px;color:var(--ink);max-width:70ch}
+
+/* layout */
+.grid{display:grid;grid-template-columns:1fr 300px;gap:16px;margin-top:16px}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+section.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;box-shadow:var(--shadow)}
+section.panel h2{font-size:15px;font-weight:700;margin:0 0 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 12px;font-size:14px}
+.btn.primary{background:var(--ink);color:var(--panel);border-color:var(--ink);font-weight:700}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* feed */
+.feed{display:flex;flex-direction:column;gap:10px}
+.ev{border:1px solid var(--line);border-left:5px solid var(--neutral);border-radius:8px;padding:10px 12px;background:var(--bg)}
+.ev.yasu{border-left-color:var(--yasu)} .ev.taka{border-left-color:var(--taka)}
+.ev.fresh{animation:flash 2.4s ease-out}
+@keyframes flash{0%{background:color-mix(in srgb,var(--warn) 22%,var(--bg))}100%{background:var(--bg)}}
+.ev-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--sub);align-items:center}
+.tag{border:1px solid var(--line);border-radius:5px;padding:0 6px}
+.dir{font-weight:900;font-size:13px;padding:1px 8px;border-radius:5px;color:#fff;background:var(--neutral)}
+.dir.yasu{background:var(--yasu)} .dir.taka{background:var(--taka)}
+.stars{letter-spacing:1px;color:var(--warn)}
+.ev h3{font-size:15px;font-weight:700;margin:4px 0 2px;line-height:1.5}
+.ev p{margin:2px 0;font-size:14px}
+.ev details{margin-top:6px;font-size:14px}
+.ev summary{cursor:pointer;color:var(--sub);font-size:13px}
+.ev a{color:var(--taka);word-break:break-all}
+.empty{color:var(--sub);font-size:14px;padding:16px 4px}
+
+/* side */
+label.f{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+input[type=text],input[type=password],input[type=datetime-local],select,textarea{
+  width:100%;border:1px solid var(--line);border-radius:7px;background:var(--bg);padding:7px 9px;font-size:14px}
+textarea{min-height:84px;resize:vertical}
+.chk{display:flex;gap:6px;align-items:center;font-size:14px;margin:3px 0}
+.cal li{display:flex;justify-content:space-between;gap:6px;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.cal ul{list-style:none;padding:0;margin:0}
+.cal .x{border:none;background:none;color:var(--sub);font-size:14px}
+.note{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.6}
+.err{color:var(--yasu);font-size:13px;margin-top:6px;white-space:pre-wrap}
+
+/* popup */
+#toasts{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;z-index:50;max-width:min(380px,calc(100vw - 28px))}
+.toast{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--neutral);border-radius:10px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.22)}
+.toast.yasu{border-left-color:var(--yasu)} .toast.taka{border-left-color:var(--taka)}
+.toast b{display:block;font-size:14px;margin-bottom:2px}
+.toast p{margin:0;font-size:13px}
+.toast button{float:right;border:none;background:none;color:var(--sub);font-size:16px;margin:-6px -6px 0 6px}
+.mode{font-size:12px;font-weight:700;color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>ドル円ウォッチ</h1>
+    <div class="status"><span class="dot" id="dot"></span><span id="stText">停止中</span><span class="mode" id="modeText"></span><span id="nextText" class="num"></span></div>
+  </header>
+
+  <div class="tug" aria-live="polite">
+    <div class="tug-head">
+      <div class="price num" id="price">---.--<small id="priceAsOf">まだ取得していません</small></div>
+      <div class="bias-label" id="biasLabel">方向感：未判定</div>
+    </div>
+    <div class="rope" aria-hidden="true"><div class="track"></div><div class="mid"></div><div class="knot" id="knot" style="left:50%"></div></div>
+    <div class="rope-ends"><span class="l">← 円高（ドル安）圧力</span><span class="r">円安（ドル高）圧力 →</span></div>
+    <p class="comment" id="comment">「監視を開始」を押すと、ニュースを定期的に調べて、ドル円への影響を判定します。</p>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <h2 style="margin:0">ニュースと影響の判定</h2>
+        <div class="row">
+          <button class="btn primary" id="startBtn">監視を開始</button>
+          <button class="btn" id="checkBtn">今すぐチェック</button>
+        </div>
+      </div>
+      <div class="feed" id="feed"><div class="empty">まだニュースはありません。右の設定でAPIキーを入れて、監視を開始してください。</div></div>
+    </section>
+
+    <aside style="display:flex;flex-direction:column;gap:16px">
+      <section class="panel">
+        <h2>ニュースを貼って分析</h2>
+        <textarea id="manualText" placeholder="例：トランプ大統領の投稿、財務官の発言、指標の結果などを貼り付け"></textarea>
+        <div class="row" style="margin-top:8px"><button class="btn primary" id="manualBtn">影響を分析</button></div>
+      </section>
+
+      <section class="panel cal">
+        <h2>重要イベント（前後30分は2分ごとに確認）</h2>
+        <ul id="calList"></ul>
+        <label class="f" for="calName">イベント名</label>
+        <input type="text" id="calName" placeholder="例：日銀 金融政策決定会合 結果">
+        <label class="f" for="calTime">日時（日本時間）</label>
+        <input type="datetime-local" id="calTime">
+        <div class="row" style="margin-top:8px"><button class="btn" id="calAdd">追加</button></div>
+      </section>
+
+      <section class="panel">
+        <h2>監視する分野</h2>
+        <div id="cats"></div>
+        <label class="f" for="minImpact">通知する重要度</label>
+        <select id="minImpact">
+          <option value="2">★2以上</option><option value="3" selected>★3以上</option><option value="4">★4以上</option>
+        </select>
+      </section>
+
+      <section class="panel">
+        <h2>スマホに通知</h2>
+        <div class="chk"><input type="checkbox" id="pushOn"><label for="pushOn">スマホにプッシュ通知を送る</label></div>
+        <label class="f" for="pushTopic">通知チャンネル名（ntfyアプリで購読する名前）</label>
+        <input type="text" id="pushTopic" autocomplete="off" spellcheck="false">
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="pushTest">テスト通知を送る</button>
+          <button class="btn" id="pushNew">名前を作り直す</button>
+        </div>
+        <p class="note">1. スマホに無料アプリ「ntfy」を入れる（App Store／Google Play）<br>2. アプリの「＋」から上の通知チャンネル名を購読する<br>3. 「テスト通知を送る」で届くか確認する<br>チャンネル名を知っている人は誰でも通知を読めるので、他人に教えないでください。</p>
+        <div class="note" id="pushMsg" style="font-weight:700"></div>
+      </section>
+
+      <section class="panel">
+        <h2>設定</h2>
+        <label class="f" for="apiKey">Anthropic APIキー</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+        <label class="f" for="model">モデル</label>
+        <select id="model">
+          <option value="claude-sonnet-5-5">Sonnet 5.5（標準）</option>
+          <option value="claude-haiku-5-5">Haiku 5.5（安い・速い）</option>
+          <option value="claude-opus-5-5">Opus 5.5（高精度・高コスト）</option>
+        </select>
+        <label class="f" for="interval">通常時の確認間隔</label>
+        <select id="interval">
+          <option value="5">5分</option><option value="10" selected>10分</option><option value="15">15分</option><option value="30">30分</option>
+        </select>
+        <div class="chk"><input type="checkbox" id="sound" checked><label for="sound">通知音を鳴らす</label></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="notifBtn">デスクトップ通知を許可</button>
+          <button class="btn" id="clearBtn">履歴を消去</button>
+        </div>
+        <div class="err" id="err"></div>
+        <p class="note">キーはこのブラウザ内にだけ保存されます。確認1回ごとにAPI料金（検索料金を含む）がかかります。監視はこのタブを開いている間だけ動きます。PCで開いたままにして、通知をスマホで受け取る使い方が確実です。</p>
+      </section>
+    </aside>
+  </div>
+</div>
+<div id="toasts"></div>
+
+<script>
+(() => {
+const CATS = [
+  {id:"us_data", name:"米経済指標（CPI・雇用統計・PCEなど）", q:"US CPI, jobs report, PCE, retail sales, ISM results vs consensus"},
+  {id:"fed", name:"FRB・FOMC・高官発言", q:"Federal Reserve, FOMC, Warsh, Waller and other Fed officials' remarks"},
+  {id:"trump", name:"トランプ大統領・米政権の発言", q:"Trump statements or posts on dollar, tariffs, Fed, Japan, Iran"},
+  {id:"mof", name:"財務省・為替介入・口先介入", q:"Japan Ministry of Finance, Katayama, Mimura, yen intervention, rate check"},
+  {id:"boj", name:"日銀・植田総裁・利上げ観測", q:"Bank of Japan, Ueda, BOJ board member remarks, rate hike expectations"},
+  {id:"geo", name:"地政学・原油（イラン・中東）", q:"Iran talks, Middle East, oil price WTI moves"},
+  {id:"usfiscal", name:"米財政・政府閉鎖・議会", q:"US budget, government shutdown, Congress, Treasury yields"},
+  {id:"jp", name:"日本の政治・財政・国債", q:"Japan government fiscal policy, Takaichi, JGB yields"}
+];
+
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem("uj_"+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem("uj_"+k, JSON.stringify(v)); }catch(e){} }
+};
+
+const $ = id => document.getElementById(id);
+let events = store.get("events", []);
+let calendar = store.get("calendar", [
+  {name:"FOMC 結果発表（12月8〜9日会合）", t:"2026-12-10T04:00"},
+  {name:"米 暫定予算の期限（政府閉鎖リスク）", t:"2026-12-11T14:00"}
+]);
+let state = store.get("state", {price:null, asOf:null, bias:0, comment:""});
+let running = false, timer = null, busy = false, nextAt = null;
+
+/* ---------- settings ---------- */
+$("apiKey").value = store.get("key", "");
+$("model").value = store.get("model", "claude-sonnet-5-5");
+$("interval").value = String(store.get("interval", 10));
+$("minImpact").value = String(store.get("minImpact", 3));
+$("sound").checked = store.get("sound", true);
+const enabledCats = store.get("cats", CATS.map(c=>c.id));
+$("cats").innerHTML = CATS.map(c => `<div class="chk"><input type="checkbox" id="c_${c.id}" ${enabledCats.includes(c.id)?"checked":""}><label for="c_${c.id}">${c.name}</label></div>`).join("");
+["apiKey","model","interval","minImpact"].forEach(id => $(id).addEventListener("change", saveSettings));
+$("sound").addEventListener("change", saveSettings);
+CATS.forEach(c => $("c_"+c.id).addEventListener("change", saveSettings));
+function saveSettings(){
+  store.set("key", $("apiKey").value.trim());
+  store.set("model", $("model").value);
+  store.set("interval", +$("interval").value);
+  store.set("minImpact", +$("minImpact").value);
+  store.set("sound", $("sound").checked);
+  store.set("cats", CATS.filter(c => $("c_"+c.id).checked).map(c=>c.id));
+}
+
+/* ---------- render ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const dirClass = d => d==="円安" ? "yasu" : d==="円高" ? "taka" : "";
+const fmtTime = iso => { if(!iso) return ""; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}); };
+
+function renderTop(){
+  if(state.price){ $("price").innerHTML = `${esc(Number(state.price).toFixed(2))}<small>${state.asOf ? fmtTime(state.asOf)+" 時点（検索結果より）" : ""}</small>`; }
+  const b = Math.max(-100, Math.min(100, Number(state.bias)||0));
+  $("knot").style.left = (50 + b/2) + "%";
+  const lbl = b>=40 ? "円安圧力が優勢" : b>=12 ? "やや円安寄り" : b<=-40 ? "円高圧力が優勢" : b<=-12 ? "やや円高寄り" : "拮抗";
+  $("biasLabel").textContent = `方向感：${lbl}（${b>0?"+":""}${b}）`;
+  $("biasLabel").style.color = b>=12 ? "var(--yasu)" : b<=-12 ? "var(--taka)" : "var(--ink)";
+  if(state.comment) $("comment").textContent = state.comment;
+}
+
+function renderFeed(freshIds = []){
+  if(!events.length){ $("feed").innerHTML = `<div class="empty">まだニュースはありません。「今すぐチェック」で最新の状況を取得できます。</div>`; return; }
+  $("feed").innerHTML = events.slice(0,80).map(e => `
+    <article class="ev ${dirClass(e.direction)} ${freshIds.includes(e.id)?"fresh":""}">
+      <div class="ev-meta">
+        <span class="dir ${dirClass(e.direction)}">${esc(e.direction||"中立")}</span>
+        <span class="stars" title="重要度">${"★".repeat(Math.max(1,Math.min(5,e.impact||1)))}</span>
+        <span class="tag">${esc(e.categoryName||"")}</span>
+        <span class="num">${fmtTime(e.time||e.found)}</span>
+        ${e.manual?'<span class="tag">貼り付け分析</span>':""}
+      </div>
+      <h3>${esc(e.headline)}</h3>
+      <p>${esc(e.summary)}</p>
+      <p><b>想定される動き：</b>${esc(e.expectedMove||"―")}${e.horizon?`（${esc(e.horizon)}）`:""}</p>
+      <details>
+        <summary>なぜそう動くか・注意点</summary>
+        <p>${esc(e.reasoning)}</p>
+        ${e.watch?`<p><b>次に見るポイント：</b>${esc(e.watch)}</p>`:""}
+        ${e.sourceUrl?`<p>出典：<a href="${esc(e.sourceUrl)}" target="_blank" rel="noopener">${esc(e.sourceName||e.sourceUrl)}</a></p>`:""}
+      </details>
+    </article>`).join("");
+}
+
+function renderCal(){
+  calendar.sort((a,b)=>a.t.localeCompare(b.t));
+  $("calList").innerHTML = calendar.length ? calendar.map((c,i)=>`<li><span>${esc(c.name)}<br><span class="num" style="color:var(--sub)">${fmtTime(c.t)}</span></span><button class="x" data-i="${i}" aria-label="削除">✕</button></li>`).join("") : `<li><span style="color:var(--sub)">イベントはありません</span></li>`;
+  $("calList").querySelectorAll(".x").forEach(b => b.onclick = () => { calendar.splice(+b.dataset.i,1); store.set("calendar",calendar); renderCal(); });
+}
+$("calAdd").onclick = () => {
+  const name = $("calName").value.trim(), t = $("calTime").value;
+  if(!name || !t){ showErr("イベント名と日時を入れてください。"); return; }
+  calendar.push({name, t}); store.set("calendar", calendar);
+  $("calName").value = ""; $("calTime").value = ""; renderCal(); showErr("");
+};
+
+/* ---------- alerts ---------- */
+function beep(dir){
+  if(!$("sound").checked) return;
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const tones = dir==="円安" ? [660,880] : dir==="円高" ? [880,660] : [740,740];
+    tones.forEach((f,i)=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
+      const t=ctx.currentTime+i*0.18; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.2,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16); o.start(t); o.stop(t+0.17); });
+  }catch(e){}
+}
+function toast(e){
+  const el = document.createElement("div");
+  el.className = "toast " + dirClass(e.direction);
+  el.innerHTML = `<button aria-label="閉じる">✕</button><b>【${esc(e.direction||"中立")} ${"★".repeat(e.impact||1)}】${esc(e.headline)}</b><p>${esc(e.expectedMove||"")}</p>`;
+  el.querySelector("button").onclick = () => el.remove();
+  $("toasts").prepend(el);
+  setTimeout(()=>el.remove(), 30000);
+}
+/* ---------- phone push (ntfy) ---------- */
+function newTopic(){
+  const a = new Uint8Array(9); crypto.getRandomValues(a);
+  return "usdjpy-" + Array.from(a, b => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+}
+if(!store.get("pushTopic", "")) store.set("pushTopic", newTopic());
+$("pushTopic").value = store.get("pushTopic", "");
+$("pushOn").checked = store.get("pushOn", false);
+$("pushTopic").addEventListener("change", () => store.set("pushTopic", $("pushTopic").value.trim()));
+$("pushOn").addEventListener("change", () => store.set("pushOn", $("pushOn").checked));
+$("pushNew").onclick = () => { const t = newTopic(); $("pushTopic").value = t; store.set("pushTopic", t); $("pushMsg").textContent = "新しい名前にしました。ntfyアプリで購読し直してください。"; };
+
+async function sendPush(title, message, priority, tags, click){
+  const topic = $("pushTopic").value.trim();
+  if(!topic) throw new Error("通知チャンネル名が空です。");
+  const body = {topic, title, message, priority, tags};
+  if(click) body.click = click;
+  const res = await fetch("https://ntfy.sh/", {method:"POST", body:JSON.stringify(body)});
+  if(!res.ok) throw new Error(`スマホ通知を送れませんでした（${res.status}）。`);
+}
+function pushEvent(e){
+  if(!$("pushOn").checked) return;
+  const pr = Math.max(3, Math.min(5, e.impact||3));
+  const tags = e.direction==="円安" ? ["chart_with_upwards_trend"] : e.direction==="円高" ? ["chart_with_downwards_trend"] : ["yen"];
+  const msg = `${e.expectedMove||""}\n${e.summary||""}${e.watch ? "\n次の注目：" + e.watch : ""}`;
+  sendPush(`ドル円【${e.direction||"中立"} ${"★".repeat(e.impact||1)}】${e.headline}`, msg, pr, tags, e.sourceUrl)
+    .catch(err => $("pushMsg").textContent = err.message);
+}
+$("pushTest").onclick = async () => {
+  $("pushMsg").textContent = "";
+  try{
+    await sendPush("ドル円ウォッチ：テスト通知", "この通知が見えれば、スマホへの通知は準備完了です。", 4, ["white_check_mark"]);
+    $("pushMsg").textContent = "送信しました。スマホに届いたか確認してください。";
+  }catch(err){ $("pushMsg").textContent = err.message; }
+};
+
+function notify(e){
+  toast(e); beep(e.direction); pushEvent(e);
+  try{
+    if("Notification" in window && Notification.permission==="granted"){
+      new Notification(`ドル円：${e.direction||"中立"} ${"★".repeat(e.impact||1)}`, {body:`${e.headline}\n${e.expectedMove||""}`, tag:e.id});
+    }
+  }catch(err){}
+}
+$("notifBtn").onclick = async () => {
+  if(!("Notification" in window)){ showErr("このブラウザはデスクトップ通知に対応していません。画面内のポップアップと音でお知らせします。"); return; }
+  const p = await Notification.requestPermission();
+  showErr(p==="granted" ? "" : "通知が許可されませんでした。画面内のポップアップと音でお知らせします。");
+  if(p==="granted") new Notification("ドル円ウォッチ", {body:"通知が届くようになりました。"});
+};
+
+/* ---------- Claude API ---------- */
+function showErr(m){ $("err").textContent = m; }
+
+async function callClaude(system, userText, useSearch){
+  const key = $("apiKey").value.trim();
+  if(!key) throw new Error("APIキーが入っていません。右下の設定に入力してください。");
+  let messages = [{role:"user", content:userText}];
+  let collected = [];
+  for(let turn=0; turn<4; turn++){
+    const body = {model:$("model").value, max_tokens:4000, system, messages};
+    if(useSearch) body.tools = [{type:"web_search_20250305", name:"web_search", max_uses:6}];
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify(body)
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(`APIエラー（${res.status}）：${data?.error?.message || "応答を読めませんでした"}`);
+    collected = collected.concat(data.content||[]);
+    if(data.stop_reason === "pause_turn"){ messages = [...messages, {role:"assistant", content:data.content}]; continue; }
+    break;
+  }
+  const text = collected.filter(b=>b.type==="text").map(b=>b.text).join("\n");
+  const s = text.indexOf("{"), e = text.lastIndexOf("}");
+  if(s<0 || e<0) throw new Error("分析結果の形式を読み取れませんでした。もう一度試してください。");
+  return JSON.parse(text.slice(s, e+1).replace(/```json|```/g,""));
+}
+
+const SCHEMA = `必ず次のJSONだけを返す（前置き・コードブロック禁止）:
+{
+ "usdjpy": {"price": 数値またはnull, "asOf": "ISO8601またはnull"},
+ "netBias": -100〜100の整数（+は円安・ドル高圧力、−は円高・ドル安圧力。今の材料全体の綱引き）,
+ "comment": "全体状況を日本語2文以内で",
+ "events": [{
+   "category": "us_data|fed|trump|mof|boj|geo|usfiscal|jp|other",
+   "time": "ISO8601（日本時間+09:00、不明ならnull）",
+   "headline": "日本語の見出し（固有名詞・数値を含め具体的に）",
+   "summary": "何が起きたか。数値は予想との差も（日本語2文以内）",
+   "direction": "円安|円高|中立",
+   "impact": 1〜5の整数（5=介入実施・政策金利決定級、4=CPI/雇用の大幅サプライズや財務相の強い牽制、3=要人の示唆的発言、2=小材料、1=ほぼ無関係）,
+   "expectedMove": "例：短期的に+0.3〜0.8円（158.5円方向）",
+   "horizon": "数分〜数時間 / 数日 / 数週間 など",
+   "reasoning": "金利差・介入警戒・リスク選好・原油などの経路で、なぜその方向か。逆に動くリスクも1つ（日本語3文以内）",
+   "watch": "次に注目すべき水準や材料",
+   "sourceName": "媒体名", "sourceUrl": "URL"
+ }]
+}`;
+
+function nowJst(){ return new Date().toLocaleString("ja-JP",{timeZone:"Asia/Tokyo"}); }
+
+async function poll(){
+  if(busy) return;
+  busy = true; setStatus();
+  showErr("");
+  try{
+    const cats = CATS.filter(c => $("c_"+c.id).checked);
+    if(!cats.length) throw new Error("監視する分野を1つ以上選んでください。");
+    const seen = events.slice(0,40).map(e=>"- "+e.headline).join("\n") || "（なし）";
+    const lastCheck = store.get("lastCheck", null);
+    const system = `あなたはドル円（USD/JPY）専門の為替ストラテジスト。ウェブ検索で最新ニュースを確認し、ドル円への影響を冷静に判定する。推測と事実を区別し、検索で確認できない情報は作らない。出力は日本語。`;
+    const user = `現在の日本時間：${nowJst()}
+前回の確認：${lastCheck ? new Date(lastCheck).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo"}) : "初回（直近24時間を対象）"}
+
+次の分野で、前回の確認以降（初回は直近24時間）に出た、ドル円を動かしうるニュース・発言・指標結果を検索して判定してください。
+${cats.map(c=>`- ${c.name}：${c.q}`).join("\n")}
+あわせて現在のドル円レートも検索で確認してください。
+
+すでに報告済みの見出し（同じ内容は events に含めない）：
+${seen}
+
+新しい材料がなければ events は空配列でよい。重要度の低いものは含めなくてよい。最大6件。
+${SCHEMA}`;
+    const r = await callClaude(system, user, true);
+    applyResult(r, false);
+    store.set("lastCheck", new Date().toISOString());
+  }catch(e){
+    showErr(e.message || String(e));
+  }finally{
+    busy = false; setStatus();
+  }
+}
+
+function applyResult(r, manual){
+  if(r.usdjpy && r.usdjpy.price){ state.price = r.usdjpy.price; state.asOf = r.usdjpy.asOf || new Date().toISOString(); }
+  if(typeof r.netBias === "number") state.bias = r.netBias;
+  if(r.comment) state.comment = r.comment;
+  store.set("state", state);
+  const min = +$("minImpact").value;
+  const keys = new Set(events.map(e => (e.headline||"").replace(/\s/g,"")));
+  const fresh = [];
+  (r.events||[]).forEach(ev => {
+    const k = (ev.headline||"").replace(/\s/g,"");
+    if(!k || keys.has(k)) return;
+    keys.add(k);
+    const cat = CATS.find(c=>c.id===ev.category);
+    const item = {...ev, id:"e"+Date.now()+Math.random().toString(36).slice(2,7), found:new Date().toISOString(), categoryName: cat ? cat.name.replace(/（.*?）/,"") : "その他", manual};
+    fresh.push(item);
+  });
+  events = [...fresh, ...events].slice(0,200);
+  store.set("events", events);
+  renderTop(); renderFeed(fresh.map(f=>f.id));
+  fresh.filter(f => manual || (f.impact||0) >= min).sort((a,b)=>(a.impact||0)-(b.impact||0)).forEach(notify);
+}
+
+$("manualBtn").onclick = async () => {
+  const txt = $("manualText").value.trim();
+  if(!txt){ showErr("分析したいニュースや発言を貼り付けてください。"); return; }
+  $("manualBtn").disabled = true; $("manualBtn").textContent = "分析中…"; showErr("");
+  try{
+    const system = `あなたはドル円（USD/JPY）専門の為替ストラテジスト。与えられた情報がドル円にどう効くかを判定する。必要なら検索で現在のレートや背景（市場予想、織り込み状況）を確認する。出力は日本語。`;
+    const user = `現在の日本時間：${nowJst()}
+次の情報がドル円に与える影響を判定してください。events には この情報1件だけを入れること。
+---
+${txt}
+---
+${SCHEMA}`;
+    const r = await callClaude(system, user, true);
+    applyResult(r, true);
+    $("manualText").value = "";
+  }catch(e){ showErr(e.message||String(e)); }
+  finally{ $("manualBtn").disabled = false; $("manualBtn").textContent = "影響を分析"; }
+};
+
+/* ---------- scheduling ---------- */
+function nearEvent(){
+  const now = Date.now();
+  return calendar.find(c => { const t = new Date(c.t).getTime(); return Math.abs(t - now) <= 30*60*1000; });
+}
+function scheduleNext(){
+  clearTimeout(timer);
+  if(!running) return;
+  const ev = nearEvent();
+  const mins = ev ? 2 : +$("interval").value;
+  nextAt = Date.now() + mins*60*1000;
+  $("modeText").textContent = ev ? `発表モード：${ev.name}` : "";
+  timer = setTimeout(async () => { await poll(); scheduleNext(); }, mins*60*1000);
+}
+function setStatus(){
+  $("dot").className = "dot " + (busy ? "busy" : running ? "on" : "");
+  $("stText").textContent = busy ? "ニュースを確認中…" : running ? "監視中" : "停止中";
+  $("startBtn").textContent = running ? "監視を停止" : "監視を開始";
+  $("checkBtn").disabled = busy;
+}
+setInterval(() => {
+  if(running && nextAt && !busy){
+    const s = Math.max(0, Math.round((nextAt - Date.now())/1000));
+    $("nextText").textContent = `次の確認まで ${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+  } else $("nextText").textContent = "";
+  // 発表モードへの切り替えを逃さない
+  if(running && !busy && nearEvent() && nextAt && nextAt - Date.now() > 2*60*1000) scheduleNext();
+}, 1000);
+
+$("startBtn").onclick = async () => {
+  if(running){ running = false; clearTimeout(timer); nextAt = null; $("modeText").textContent=""; setStatus(); return; }
+  if(!$("apiKey").value.trim()){ showErr("APIキーが入っていません。右下の設定に入力してください。"); return; }
+  running = true; setStatus();
+  await poll(); scheduleNext();
+};
+$("checkBtn").onclick = async () => { await poll(); if(running) scheduleNext(); };
+$("clearBtn").onclick = () => { if(confirm("ニュース履歴を消去しますか？")){ events = []; store.set("events", events); store.set("lastCheck", null); renderFeed(); } };
+document.addEventListener("visibilitychange", () => {
+  // バックグラウンドでタイマーが遅れた場合、戻ったときに確認する
+  if(!document.hidden && running && nextAt && Date.now() > nextAt + 30000 && !busy){ poll().then(scheduleNext); }
+});
+
+renderTop(); renderFeed(); renderCal(); setStatus();
+})();
+</script>
+</body>
+</html>
