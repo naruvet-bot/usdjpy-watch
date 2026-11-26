@@ -114,6 +114,48 @@ textarea{min-height:84px;resize:vertical}
 .toast p{margin:0;font-size:13px}
 .toast button{float:right;border:none;background:none;color:var(--sub);font-size:16px;margin:-6px -6px 0 6px}
 .mode{font-size:12px;font-weight:700;color:var(--warn)}
+/* ===== range mode ===== */
+.rng{margin-top:16px}
+.rng-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.rng-head h2{margin:0}
+.sig{display:inline-flex;align-items:center;gap:8px;font-weight:900;font-size:15px;padding:4px 12px;border-radius:999px;border:1.5px solid currentColor}
+.sig.go{color:#2E9E5B} .sig.care{color:var(--warn)} .sig.stop{color:var(--yasu)} .sig.off{color:var(--neutral)}
+.rbar{position:relative;height:66px;margin:14px 4px 4px}
+.rbar .base{position:absolute;left:0;right:0;top:30px;height:6px;border-radius:3px;background:var(--line)}
+.rbar .z{position:absolute;top:24px;height:18px;border-radius:4px;opacity:.85}
+.rbar .z.buy{background:color-mix(in srgb,var(--taka) 45%,transparent)}
+.rbar .z.sell{background:color-mix(in srgb,var(--yasu) 45%,transparent)}
+.rbar .tick{position:absolute;top:18px;width:2px;height:30px;transform:translateX(-1px)}
+.rbar .tick.stop{background:var(--ink);height:34px;top:16px}
+.rbar .tick.tg{background:var(--sub)}
+.rbar .tick.hl{background:var(--sub);opacity:.5;height:24px;top:21px}
+.rbar .now{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;transition:left .6s ease}
+.rbar .now b{font-size:12px;background:var(--ink);color:var(--panel);border-radius:5px;padding:0 6px;white-space:nowrap}
+.rbar .now i{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid var(--ink)}
+.rbar .lab{position:absolute;top:50px;font-size:11px;color:var(--sub);transform:translateX(-50%);white-space:nowrap}
+.plan{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+@media (max-width:520px){.plan{grid-template-columns:1fr 1fr}.plan .mid{grid-column:1 / -1;order:3}}
+.pc{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--bg)}
+.pc .t{font-size:12px;color:var(--sub)}
+.pc .v{font-size:19px;font-weight:900;line-height:1.3}
+.pc .s{font-size:12px;color:var(--sub)}
+.pc.sell{border-top:4px solid var(--yasu)} .pc.buy{border-top:4px solid var(--taka)}
+.stats{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.stats span{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:1px 8px;background:var(--bg)}
+.warns{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-direction:column;gap:4px}
+.warns li{font-size:13px;padding:5px 9px;border-radius:7px;background:var(--bg);border-left:4px solid var(--neutral)}
+.warns li.stop{border-left-color:var(--yasu)} .warns li.care{border-left-color:var(--warn)} .warns li.ok{border-left-color:#2E9E5B}
+details.lv{margin-top:10px}
+details.lv summary,details.rset summary{cursor:pointer;font-size:14px;font-weight:700}
+.ladder{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+.ladder td{padding:4px 6px;border-bottom:1px dashed var(--line)}
+.ladder td:last-child{text-align:right}
+.ladder tr.cur td{font-weight:900;background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.ladder tr.hot td:first-child::after{content:" ●";color:var(--warn)}
+.ladder tr.in-sell td{color:var(--yasu)} .ladder tr.in-buy td{color:var(--taka)}
+details.rset{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.two>div{min-width:0}.rng input,.rng select{max-width:100%}
+
 </style>
 </head>
 <body>
@@ -132,6 +174,54 @@ textarea{min-height:84px;resize:vertical}
     <div class="rope-ends"><span class="l">← 円高（ドル安）圧力</span><span class="r">円安（ドル高）圧力 →</span></div>
     <p class="comment" id="comment">「監視を開始」を押すと、ニュースを定期的に調べて、ドル円への影響を判定します。</p>
   </div>
+
+
+  <section class="panel rng" id="rangePanel">
+    <div class="rng-head">
+      <h2>レンジモード</h2>
+      <span class="sig off" id="rSig">未計算</span>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="rStart">レンジ監視を開始</button>
+      <button class="btn" id="rCalc">今日のレンジを計算</button>
+    </div>
+    <p class="note" id="rStatus">Twelve Dataの無料キーを下の「レンジ設定」に入れると、価格を自動で取得して端に近づいたら知らせます。</p>
+
+    <div class="rbar" id="rBar" aria-hidden="true"></div>
+
+    <div class="plan">
+      <div class="pc sell"><div class="t">売り検討帯</div><div class="v num" id="pSell">---</div><div class="s num" id="pSellStop">損切り ---</div></div>
+      <div class="pc mid"><div class="t">利確の目安（中心）</div><div class="v num" id="pMid">---</div><div class="s num" id="pUsed">今日の値幅 ---</div></div>
+      <div class="pc buy"><div class="t">買い検討帯</div><div class="v num" id="pBuy">---</div><div class="s num" id="pBuyStop">損切り ---</div></div>
+    </div>
+    <div class="stats num" id="rStats"></div>
+    <ul class="warns" id="rWarns"></ul>
+
+    <details class="lv">
+      <summary>意識されやすい水準の一覧</summary>
+      <table class="ladder num" id="rLadder"></table>
+      <p class="note">● は売り・買い検討帯と重なる水準です。重なりが多いほど反発しやすい候補になります。</p>
+    </details>
+
+    <details class="rset">
+      <summary>レンジ設定</summary>
+      <label class="f" for="tdKey">Twelve Data APIキー（無料）</label>
+      <input type="password" id="tdKey" autocomplete="off" placeholder="twelvedata.com で無料登録して取得">
+      <div class="two">
+        <div><label class="f" for="rPoll">価格の確認間隔</label>
+          <select id="rPoll"><option value="1">1分</option><option value="2" selected>2分</option><option value="5">5分</option></select></div>
+        <div><label class="f" for="rIntv">介入警戒ライン</label>
+          <input type="text" id="rIntv" inputmode="decimal" value="159.80"></div>
+        <div><label class="f" for="rZone">検討帯の幅（ATRの%）</label>
+          <select id="rZone"><option value="8">8%</option><option value="12" selected>12%</option><option value="18">18%</option></select></div>
+        <div><label class="f" for="rStop">損切り幅（ATRの%）</label>
+          <select id="rStop"><option value="15">15%</option><option value="25" selected>25%</option><option value="35">35%</option></select></div>
+      </div>
+      <div class="chk" style="margin-top:8px"><input type="checkbox" id="rPush"><label for="rPush">端への接近・レンジ崩れをスマホ（ntfy）に通知</label></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="rClaude">キーなしで計算（Claude検索）</button></div>
+      <p class="note">価格の確認1回で無料枠を1回分使います（1日800回まで）。2分間隔なら1日中開いていても枠内です。「キーなしで計算」はAnthropicのキーで水準だけを調べます（自動の価格監視はできません）。<br>この画面の数字は計算上の目安です。売買の判断はご自身で行ってください。</p>
+    </details>
+  </section>
 
   <div class="grid">
     <section class="panel">
@@ -590,5 +680,401 @@ document.addEventListener("visibilitychange", () => {
 renderTop(); renderFeed(); renderCal(); setStatus();
 })();
 </script>
+<script>
+/* ===== レンジモード ===== */
+(() => {
+const $ = id => document.getElementById(id);
+const S = {
+  get(k, d){ try{ const v = localStorage.getItem("uj_"+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem("uj_"+k, JSON.stringify(v)); }catch(e){} }
+};
+const H = 3600e3, JST = 9*H;
+const f2 = v => (v==null||isNaN(v)) ? "---" : Number(v).toFixed(2);
+const pips = v => (v==null||isNaN(v)) ? "---" : Math.round(v*100) + "銭";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+
+/* 日銀・FOMCなどの組み込み予定（重要イベント欄の登録分にも対応） */
+const BUILTIN = [
+  {name:"FOMC 結果発表", t:"2026-12-10T04:00"},
+  {name:"日銀 金融政策決定会合 結果（昼ごろ）", t:"2026-12-18T12:00"}
+];
+
+/* ---------- 設定 ---------- */
+$("tdKey").value = S.get("tdKey","");
+$("rPoll").value = String(S.get("rPoll",2));
+$("rIntv").value = S.get("rIntv","159.80");
+$("rZone").value = String(S.get("rZone",12));
+$("rStop").value = String(S.get("rStop",25));
+$("rPush").checked = S.get("rPush", false);
+[["tdKey","tdKey",v=>v.trim()],["rPoll","rPoll",Number],["rIntv","rIntv",v=>v.trim()],["rZone","rZone",Number],["rStop","rStop",Number]]
+  .forEach(([id,k,fn]) => $(id).addEventListener("change", () => { S.set(k, fn($(id).value)); compute(); }));
+$("rPush").addEventListener("change", () => S.set("rPush", $("rPush").checked));
+
+/* ---------- 時刻 ---------- */
+function jstParts(ms){ const d = new Date(ms + JST); return {y:d.getUTCFullYear(), m:d.getUTCMonth(), d:d.getUTCDate(), h:d.getUTCHours(), mi:d.getUTCMinutes(), wd:d.getUTCDay()}; }
+function nthSunday(y, m, n){ const first = new Date(Date.UTC(y, m, 1)).getUTCDay(); return 1 + ((7-first)%7) + 7*(n-1); }
+function usDST(ms){ // 米国夏時間か（3月第2日曜〜11月第1日曜）
+  const p = jstParts(ms), y = p.y;
+  const start = Date.UTC(y, 2, nthSunday(y,2,2), 7), end = Date.UTC(y, 10, nthSunday(y,10,1), 6);
+  return ms >= start && ms < end;
+}
+const rollHour = ms => usDST(ms) ? 6 : 7;   // NYクローズ（日本時間）
+function dayStart(ms){
+  const p = jstParts(ms), r = rollHour(ms);
+  let st = Date.UTC(p.y, p.m, p.d, r) - JST;
+  if(st > ms) st -= 24*H;
+  return st;
+}
+function marketClosed(ms){
+  const p = jstParts(ms), r = rollHour(ms);
+  if(p.wd === 0) return true;
+  if(p.wd === 6 && p.h >= r) return true;
+  if(p.wd === 1 && p.h < r) return true;
+  return false;
+}
+function gotobi(ms){
+  const p = jstParts(ms), last = new Date(Date.UTC(p.y, p.m+1, 0)).getUTCDate();
+  return [5,10,15,20,25,30].includes(p.d) || p.d === last;
+}
+const parseJstStr = s => { const [a,b="00:00:00"] = s.split(" "); const [y,m,d] = a.split("-").map(Number); const [hh,mm] = b.split(":").map(Number); return Date.UTC(y,m-1,d,hh,mm) - JST; };
+
+/* ---------- 指標 ---------- */
+function sma(a, n){ if(a.length < n) return null; return a.slice(-n).reduce((x,y)=>x+y,0)/n; }
+function wilderATR(bars, n=14){
+  if(bars.length < n+1) return null;
+  const tr = bars.slice(1).map((b,i) => Math.max(b.h-b.l, Math.abs(b.h-bars[i].c), Math.abs(b.l-bars[i].c)));
+  let atr = tr.slice(0,n).reduce((x,y)=>x+y,0)/n;
+  for(let i=n;i<tr.length;i++) atr = (atr*(n-1)+tr[i])/n;
+  return atr;
+}
+function wilderADX(bars, n=14){
+  if(bars.length < 2*n+2) return null;
+  const tr=[], pdm=[], ndm=[];
+  for(let i=1;i<bars.length;i++){
+    const b=bars[i], p=bars[i-1], up=b.h-p.h, dn=p.l-b.l;
+    tr.push(Math.max(b.h-b.l, Math.abs(b.h-p.c), Math.abs(b.l-p.c)));
+    pdm.push(up>dn && up>0 ? up : 0); ndm.push(dn>up && dn>0 ? dn : 0);
+  }
+  let atr = tr.slice(0,n).reduce((a,b)=>a+b,0), pd = pdm.slice(0,n).reduce((a,b)=>a+b,0), nd = ndm.slice(0,n).reduce((a,b)=>a+b,0);
+  const dx=[];
+  for(let i=n;i<tr.length;i++){
+    atr = atr - atr/n + tr[i]; pd = pd - pd/n + pdm[i]; nd = nd - nd/n + ndm[i];
+    const pdi = 100*pd/atr, ndi = 100*nd/atr;
+    dx.push(pdi+ndi===0 ? 0 : 100*Math.abs(pdi-ndi)/(pdi+ndi));
+  }
+  if(dx.length < n) return null;
+  let adx = dx.slice(0,n).reduce((a,b)=>a+b,0)/n;
+  for(let i=n;i<dx.length;i++) adx = (adx*(n-1)+dx[i])/n;
+  return adx;
+}
+function bollinger(closes, n=20, k=2){
+  if(closes.length < n) return null;
+  const a = closes.slice(-n), m = a.reduce((x,y)=>x+y,0)/n;
+  const sd = Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/n);
+  return {mid:m, up:m+k*sd, lo:m-k*sd};
+}
+
+/* ---------- データ取得（Twelve Data） ---------- */
+let R = S.get("range", null);   // 計算に使う元データ
+let live = {price:null, at:null};
+let alerted = S.get("rAlerted", {});
+let pollTimer = null, hourTimer = null, running = false;
+
+async function td(path, params){
+  const key = $("tdKey").value.trim();
+  if(!key) throw new Error("Twelve DataのAPIキーが入っていません。「レンジ設定」に入力してください。");
+  const q = new URLSearchParams({...params, apikey:key});
+  const res = await fetch(`https://api.twelvedata.com/${path}?${q}`);
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok || j.status === "error") throw new Error(`価格データの取得に失敗しました：${j.message || res.status}`);
+  return j;
+}
+const toBar = v => ({t:v.datetime, o:+v.open, h:+v.high, l:+v.low, c:+v.close});
+
+async function loadDaily(){
+  const j = await td("time_series", {symbol:"USD/JPY", interval:"1day", outputsize:"260"});
+  let bars = (j.values||[]).map(toBar).reverse();
+  const todayUTC = new Date().toISOString().slice(0,10);
+  if(bars.length && bars[bars.length-1].t.slice(0,10) === todayUTC) bars = bars.slice(0,-1); // 進行中の足は除外
+  const closes = bars.map(b=>b.c);
+  return {
+    atr: wilderATR(bars.slice(-120)), adx: wilderADX(bars.slice(-120)),
+    ma20: sma(closes,20), ma200: sma(closes,200), bb: bollinger(closes),
+    dailyDate: todayUTC
+  };
+}
+async function loadHourly(){
+  const j = await td("time_series", {symbol:"USD/JPY", interval:"1h", outputsize:"120", timezone:"Asia/Tokyo"});
+  const bars = (j.values||[]).map(v => ({...toBar(v), ms:parseJstStr(v.datetime)})).reverse();
+  const now = Date.now(), st = dayStart(now);
+  const today = bars.filter(b => b.ms >= st);
+  let prev = [], from = st;
+  for(let i=0;i<4 && !prev.length;i++){ prev = bars.filter(b => b.ms >= from-24*H && b.ms < from); from -= 24*H; }
+  const agg = a => a.length ? {o:a[0].o, h:Math.max(...a.map(b=>b.h)), l:Math.min(...a.map(b=>b.l)), c:a[a.length-1].c} : null;
+  return {today:agg(today), prev:agg(prev), dayStart:st, last: bars.length ? bars[bars.length-1].c : null};
+}
+async function loadPrice(){
+  const j = await td("price", {symbol:"USD/JPY"});
+  const p = parseFloat(j.price);
+  if(!isFinite(p)) throw new Error("現在値を読み取れませんでした。");
+  live = {price:p, at:Date.now()};
+  if(R && R.today && R.dayStart === dayStart(Date.now())){
+    R.today.h = Math.max(R.today.h, p); R.today.l = Math.min(R.today.l, p);
+  }
+  return p;
+}
+
+async function refreshAll(){
+  setStatus("価格データを取得しています…");
+  const needDaily = !R || !R.atr || R.dailyDate !== new Date().toISOString().slice(0,10);
+  const d = needDaily ? await loadDaily() : {atr:R.atr, adx:R.adx, ma20:R.ma20, ma200:R.ma200, bb:R.bb, dailyDate:R.dailyDate};
+  const h = await loadHourly();
+  R = {...d, ...h, source:"twelve", updated:Date.now()};
+  if(!h.today && h.last) R.today = {o:h.last, h:h.last, l:h.last, c:h.last};
+  S.set("range", R);
+  try{ await loadPrice(); }catch(e){ live = {price:h.last, at:Date.now()}; }
+  compute(); checkAlerts();
+  setStatus(`最終更新 ${new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}`);
+}
+
+/* ---------- Claude検索で水準だけ取得（キーなし用） ---------- */
+$("rClaude").onclick = async () => {
+  const key = S.get("key","");
+  if(!key){ setStatus("下の「設定」にAnthropic APIキーを入れてください。", true); return; }
+  $("rClaude").disabled = true; setStatus("Claudeが最新の水準を調べています…（1分ほど）");
+  try{
+    const body = {model:S.get("model","claude-sonnet-5-5"), max_tokens:3000,
+      tools:[{type:"web_search_20250305", name:"web_search", max_uses:5}],
+      system:"為替データの調査係。検索で確認できた数値だけを使い、不明はnull。JSONのみ出力。",
+      messages:[{role:"user", content:`現在 ${new Date().toLocaleString("ja-JP",{timeZone:"Asia/Tokyo"})}（日本時間）。ドル円について次を検索で調べ、JSONだけを返してください（コードブロック不可）。
+{"price":現在値,"prevHigh":前営業日高値,"prevLow":前営業日安値,"prevClose":前営業日終値,"todayHigh":本日高値,"todayLow":本日安値,"todayOpen":本日始値,"atr":日足ATR14（円単位。84pipsなら0.84）,"adx":日足ADX14,"ma20":20日移動平均,"ma200":200日移動平均}`}]};
+    let blocks = [], messages = body.messages;
+    for(let i=0;i<4;i++){
+      const res = await fetch("https://api.anthropic.com/v1/messages", {method:"POST",
+        headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({...body, messages})});
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(`APIエラー（${res.status}）：${j?.error?.message||""}`);
+      blocks = blocks.concat(j.content||[]);
+      if(j.stop_reason === "pause_turn"){ messages = [...messages, {role:"assistant", content:j.content}]; continue; }
+      break;
+    }
+    let last = -1; blocks.forEach((b,i)=>{ if(b.type && b.type.endsWith("tool_result")) last = i; });
+    const text = blocks.slice(last+1).filter(b=>b.type==="text").map(b=>b.text).join("");
+    const m = text.match(/\{[\s\S]*\}/); if(!m) throw new Error("結果を読み取れませんでした。もう一度試してください。");
+    const o = JSON.parse(m[0].replace(/,\s*([\]}])/g,"$1"));
+    if(!o.prevHigh || !o.prevLow || !o.atr) throw new Error("必要な数値（前日高安・ATR）が見つかりませんでした。");
+    const atr = o.atr > 5 ? o.atr/100 : o.atr;   // pipsで返ってきた場合の補正
+    const p = o.price || o.prevClose;
+    R = {atr, adx:o.adx??null, ma20:o.ma20??null, ma200:o.ma200??null, bb:null,
+      prev:{o:null, h:o.prevHigh, l:o.prevLow, c:o.prevClose ?? p},
+      today:{o:o.todayOpen ?? p, h:o.todayHigh ?? p, l:o.todayLow ?? p, c:p},
+      dayStart:dayStart(Date.now()), source:"claude", updated:Date.now(), dailyDate:new Date().toISOString().slice(0,10)};
+    S.set("range", R); live = {price:p, at:Date.now()};
+    compute(); setStatus("Claude検索で計算しました（価格の自動監視はTwelve Dataのキーが必要です）");
+  }catch(e){ setStatus(e.message||String(e), true); }
+  finally{ $("rClaude").disabled = false; }
+};
+
+/* ---------- 計算 ---------- */
+let P = null;  // 計算結果
+function compute(){
+  if(!R || !R.atr || !R.prev){ render(); return; }
+  const now = Date.now();
+  if(R.dayStart && R.dayStart !== dayStart(now) && R.source === "twelve"){ /* 日付が変わった */ }
+  const price = live.price ?? R.today?.c ?? R.prev.c;
+  const T = R.today || {o:price,h:price,l:price,c:price};
+  const atr = R.atr, used = T.h - T.l;
+  const upper = used >= atr ? T.h : T.l + atr;
+  const lower = used >= atr ? T.l : T.h - atr;
+  const zw = atr * (+$("rZone").value)/100, st = atr * (+$("rStop").value)/100;
+  const pv = R.prev, piv = (pv.h + pv.l + pv.c)/3;
+  P = {price, atr, used, upper, lower, zw, st,
+    sellLo: upper - zw, sellHi: upper, sellStop: upper + st,
+    buyLo: lower, buyHi: lower + zw, buyStop: lower - st,
+    mid: (upper + lower)/2, today:T,
+    pivot:{P:piv, R1:2*piv-pv.l, S1:2*piv-pv.h, R2:piv+(pv.h-pv.l), S2:piv-(pv.h-pv.l)}};
+  P.warns = judge(now);
+  render();
+}
+
+function judge(now){
+  const W = [], p = jstParts(now), mins = p.h*60 + p.mi, dst = usDST(now);
+  const add = (lv, msg) => W.push({lv, msg});
+  if(marketClosed(now)) add("stop", "週末で市場は休場中です。月曜朝は窓開け（大きな価格差）に注意してください。");
+  // ADX
+  if(R.adx != null){
+    if(R.adx < 20) add("ok", `日足ADX ${R.adx.toFixed(1)}：トレンドが弱く、レンジ向きの地合いです。`);
+    else if(R.adx < 25) add("care", `日足ADX ${R.adx.toFixed(1)}：トレンドが出始めています。検討帯を広めに見てください。`);
+    else add("stop", `日足ADX ${R.adx.toFixed(1)}：トレンドが強い状態です。逆張りは不利になりやすい日です。`);
+  }
+  // 値幅の消化
+  const ratio = P.used / P.atr;
+  if(ratio >= 1.2) add("stop", `今日の値幅がATRの${Math.round(ratio*100)}%まで拡大。レンジを超えて動く日の可能性があります。`);
+  else if(ratio >= 0.8) add("ok", `今日の値幅はATRの${Math.round(ratio*100)}%。端での逆張りが効きやすい段階です。`);
+  else add("care", `今日の値幅はまだATRの${Math.round(ratio*100)}%。今の高値・安値が本当の端とは限りません。`);
+  // 介入
+  const iv = parseFloat($("rIntv").value);
+  if(isFinite(iv) && P.price >= iv) add("stop", `${iv.toFixed(2)}円以上は介入警戒圏。上限での売りは有利でも、下限での買いは急落に巻き込まれる恐れがあります。`);
+  else if(isFinite(iv) && P.sellHi >= iv) add("care", `売り検討帯が介入警戒ライン（${iv.toFixed(2)}円）に近い位置です。`);
+  // 五十日・仲値
+  if(gotobi(now) && !marketClosed(now)){
+    if(mins >= 8*60+30 && mins < 9*60+55) add("care", "五十日の仲値前（〜9:55）です。ドル買いが入りやすいので、上限での売りは控えめに。");
+    else if(mins < 8*60+30) add("care", "今日は五十日。8:30〜9:55は上限での売りを控えるのが無難です。");
+  }
+  // 時間帯
+  const lon = dst ? 16*60 : 17*60, us = dst ? 21*60 : 22*60;
+  if(mins >= lon-60 && mins < lon+60) add("care", `ロンドン勢の参入時間帯（${dst?"15〜17":"16〜18"}時）。東京のレンジが崩されやすい時間です。`);
+  if(mins >= us-30 && mins < us+90) add("care", `米国指標・NY寄りの時間帯（${dst?"20:30〜22:30":"21:30〜23:30"}）。指標の日は特に注意してください。`);
+  if(mins >= 4*60 && mins < 7*60) add("care", "早朝の流動性が薄い時間帯です。スプレッドの拡大や急な動きに注意してください。");
+  // イベント
+  const cal = [...BUILTIN, ...S.get("calendar", [])];
+  const seen = new Set();
+  cal.forEach(c => {
+    const t = new Date(c.t.length === 16 ? c.t + ":00+09:00" : c.t).getTime();
+    if(!isFinite(t) || seen.has(c.t + c.name)) return; seen.add(c.t + c.name);
+    const diff = (t - now)/60000;
+    if(Math.abs(diff) <= 60) add("stop", `「${c.name}」の前後1時間です。レンジ取引は休むのが基本です。`);
+    else if(diff > 60 && diff <= 24*60) add("care", `24時間以内に「${c.name}」（${new Date(t).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}）があります。持ち越しに注意。`);
+  });
+  return W;
+}
+
+/* ---------- 表示 ---------- */
+function setStatus(m, err){ $("rStatus").textContent = m; $("rStatus").style.color = err ? "var(--yasu)" : ""; }
+
+function render(){
+  if(!P){ $("rSig").className = "sig off"; $("rSig").textContent = "未計算"; return; }
+  const stop = P.warns.some(w=>w.lv==="stop"), care = P.warns.some(w=>w.lv==="care");
+  $("rSig").className = "sig " + (stop ? "stop" : care ? "care" : "go");
+  $("rSig").textContent = stop ? "● 見送り推奨" : care ? "● 注意して取引" : "● レンジ向き";
+
+  $("pSell").textContent = `${f2(P.sellLo)}〜${f2(P.sellHi)}`;
+  $("pSellStop").textContent = `損切り ${f2(P.sellStop)}`;
+  $("pBuy").textContent = `${f2(P.buyLo)}〜${f2(P.buyHi)}`;
+  $("pBuyStop").textContent = `損切り ${f2(P.buyStop)}`;
+  $("pMid").textContent = f2(P.mid);
+  $("pUsed").textContent = `今日の値幅 ${pips(P.used)}／ATR ${pips(P.atr)}`;
+
+  // バー
+  const lo = P.buyStop - P.atr*0.1, hi = P.sellStop + P.atr*0.1, span = hi - lo;
+  const x = v => Math.max(0, Math.min(100, (v - lo)/span*100));
+  const pr = P.price;
+  $("rBar").innerHTML = `
+    <div class="base"></div>
+    <div class="z buy" style="left:${x(P.buyLo)}%;width:${x(P.buyHi)-x(P.buyLo)}%"></div>
+    <div class="z sell" style="left:${x(P.sellLo)}%;width:${x(P.sellHi)-x(P.sellLo)}%"></div>
+    <div class="tick stop" style="left:${x(P.buyStop)}%"></div>
+    <div class="tick stop" style="left:${x(P.sellStop)}%"></div>
+    <div class="tick tg" style="left:${x(P.mid)}%"></div>
+    <div class="tick hl" style="left:${x(P.today.h)}%"></div>
+    <div class="tick hl" style="left:${x(P.today.l)}%"></div>
+    <div class="now" style="left:${x(pr)}%"><b>${f2(pr)}</b><i></i></div>
+    <span class="lab" style="left:${Math.max(6,x(P.buyStop))}%">損切</span>
+    <span class="lab" style="left:${x((P.buyLo+P.buyHi)/2)}%;color:var(--taka)">買い</span>
+    <span class="lab" style="left:${x(P.mid)}%">中心</span>
+    <span class="lab" style="left:${x((P.sellLo+P.sellHi)/2)}%;color:var(--yasu)">売り</span>
+    <span class="lab" style="left:${Math.min(94,x(P.sellStop))}%">損切</span>`;
+
+  const st = [];
+  st.push(`本日 高${f2(P.today.h)} 安${f2(P.today.l)}`);
+  if(R.prev) st.push(`前日 高${f2(R.prev.h)} 安${f2(R.prev.l)}`);
+  if(R.adx != null) st.push(`ADX ${R.adx.toFixed(1)}`);
+  if(live.at) st.push(`価格 ${new Date(live.at).toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}時点`);
+  $("rStats").innerHTML = st.map(t=>`<span>${esc(t)}</span>`).join("");
+
+  const order = {stop:0, care:1, ok:2};
+  $("rWarns").innerHTML = P.warns.slice().sort((a,b)=>order[a.lv]-order[b.lv]).map(w=>`<li class="${w.lv}">${esc(w.msg)}</li>`).join("");
+
+  // 水準一覧
+  const lv = [];
+  const push = (name, v) => { if(v!=null && isFinite(v)) lv.push({name, v}); };
+  push("前日高値", R.prev?.h); push("前日安値", R.prev?.l); push("前日終値", R.prev?.c);
+  push("ピボット", P.pivot.P); push("R1", P.pivot.R1); push("R2", P.pivot.R2); push("S1", P.pivot.S1); push("S2", P.pivot.S2);
+  push("20日線", R.ma20); push("200日線", R.ma200);
+  if(R.bb){ push("ボリンジャー+2σ", R.bb.up); push("ボリンジャー−2σ", R.bb.lo); }
+  push("本日高値", P.today.h); push("本日安値", P.today.l);
+  const iv = parseFloat($("rIntv").value); if(isFinite(iv)) push("介入警戒ライン", iv);
+  for(let r = Math.floor((P.buyStop-0.5)*2)/2; r <= P.sellStop+0.5; r += 0.5) push(Number.isInteger(r) ? "キリ番" : "半端キリ番", r);
+  const near = P.atr*0.06;
+  const rows = lv.filter(l => l.v >= P.buyStop - P.atr*0.6 && l.v <= P.sellStop + P.atr*0.6);
+  rows.push({name:"▶ 現在値", v:pr, cur:true});
+  rows.sort((a,b)=>b.v-a.v);
+  $("rLadder").innerHTML = rows.map(l => {
+    const inS = l.v >= P.sellLo - near && l.v <= P.sellHi + near, inB = l.v >= P.buyLo - near && l.v <= P.buyHi + near;
+    const cls = [l.cur?"cur":"", !l.cur && (inS||inB) ? "hot":"", inS?"in-sell":"", inB?"in-buy":""].join(" ");
+    return `<tr class="${cls}"><td>${esc(l.name)}</td><td>${f2(l.v)}</td></tr>`;
+  }).join("");
+}
+
+/* ---------- 通知 ---------- */
+function beep(up){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    (up ? [523,784,1046] : [1046,784,523]).forEach((f,i)=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
+      const t=ctx.currentTime+i*0.15; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.22,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.13); o.start(t); o.stop(t+0.14); });
+  }catch(e){}
+}
+function notify(title, body, cls, prio){
+  const el = document.createElement("div");
+  el.className = "toast " + cls;
+  el.innerHTML = `<button aria-label="閉じる">✕</button><b>${esc(title)}</b><p>${esc(body)}</p>`;
+  el.querySelector("button").onclick = () => el.remove();
+  $("toasts").prepend(el); setTimeout(()=>el.remove(), 45000);
+  if(S.get("sound", true)) beep(cls === "yasu");
+  try{ if("Notification" in window && Notification.permission === "granted") new Notification(title, {body}); }catch(e){}
+  const topic = S.get("pushTopic","");
+  if($("rPush").checked && topic){
+    fetch("https://ntfy.sh/", {method:"POST", body:JSON.stringify({topic, title, message:body, priority:prio, tags:[cls==="yasu"?"red_circle":"large_blue_circle"]})}).catch(()=>{});
+  }
+}
+function checkAlerts(){
+  if(!P || live.price == null) return;
+  const day = String(dayStart(Date.now()));
+  if(alerted.day !== day) alerted = {day};
+  const p = live.price, sig = $("rSig").textContent.replace("● ","");
+  const fire = (k, title, body, cls, prio) => { if(alerted[k]) return; alerted[k] = true; S.set("rAlerted", alerted); notify(title, body, cls, prio); };
+  if(p > P.sellStop) fire("upBreak", `ドル円 上抜け ${f2(p)}`, `損切りライン${f2(P.sellStop)}を超えました。レンジ崩れの可能性。売りは撤退を検討。`, "yasu", 5);
+  else if(p >= P.sellLo) fire("sell", `ドル円 売り検討帯 ${f2(p)}`, `検討帯 ${f2(P.sellLo)}〜${f2(P.sellHi)}／損切り ${f2(P.sellStop)}／目安 ${f2(P.mid)}（判定：${sig}）`, "yasu", 4);
+  if(p < P.buyStop) fire("dnBreak", `ドル円 下抜け ${f2(p)}`, `損切りライン${f2(P.buyStop)}を割りました。レンジ崩れの可能性。買いは撤退を検討。`, "taka", 5);
+  else if(p <= P.buyHi) fire("buy", `ドル円 買い検討帯 ${f2(p)}`, `検討帯 ${f2(P.buyLo)}〜${f2(P.buyHi)}／損切り ${f2(P.buyStop)}／目安 ${f2(P.mid)}（判定：${sig}）`, "taka", 4);
+}
+
+/* ---------- 監視ループ ---------- */
+async function tick(){
+  if(marketClosed(Date.now())){ setStatus("週末で市場が休場中のため、価格の確認を止めています。"); return; }
+  try{
+    if(!R || R.source !== "twelve" || R.dayStart !== dayStart(Date.now())) await refreshAll();
+    else { await loadPrice(); compute(); checkAlerts();
+      setStatus(`監視中：最終確認 ${new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}`); }
+  }catch(e){ setStatus(e.message||String(e), true); }
+}
+function start(){
+  running = true; $("rStart").textContent = "レンジ監視を停止";
+  refreshAll().catch(e=>setStatus(e.message||String(e), true));
+  pollTimer = setInterval(tick, (+$("rPoll").value)*60000);
+  hourTimer = setInterval(() => loadHourly().then(h => { if(R){ Object.assign(R, h); S.set("range", R); compute(); } }).catch(()=>{}), 30*60000);
+}
+function stop(){
+  running = false; clearInterval(pollTimer); clearInterval(hourTimer);
+  $("rStart").textContent = "レンジ監視を開始"; setStatus("監視を停止しました。");
+}
+$("rStart").onclick = () => {
+  if(running) return stop();
+  if(!$("tdKey").value.trim()){ setStatus("Twelve DataのAPIキーが必要です。「レンジ設定」を開いて入力してください（キーがない場合は「キーなしで計算」）。", true); $("rangePanel").querySelector("details.rset").open = true; return; }
+  start();
+};
+$("rCalc").onclick = () => {
+  if($("tdKey").value.trim()) refreshAll().catch(e=>setStatus(e.message||String(e), true));
+  else $("rClaude").click();
+};
+document.addEventListener("visibilitychange", () => { if(!document.hidden && running) tick(); });
+setInterval(() => { if(P){ P.warns = judge(Date.now()); render(); } }, 60000);  // 時間帯の注意を更新
+
+if(R && R.atr){ live = {price: R.today?.c ?? null, at: R.updated}; compute();
+  setStatus(`前回の計算（${new Date(R.updated).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}）を表示中。「今日のレンジを計算」で最新にできます。`); }
+})();
+</script>
+
 </body>
 </html>
