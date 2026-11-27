@@ -154,6 +154,22 @@ details.lv summary,details.rset summary{cursor:pointer;font-size:14px;font-weigh
 .ladder tr.hot td:first-child::after{content:" ●";color:var(--warn)}
 .ladder tr.in-sell td{color:var(--yasu)} .ladder tr.in-buy td{color:var(--taka)}
 details.rset{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+
+.lot{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.lot h3{font-size:14px;margin:0 0 6px}
+.lot .in3{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,0.9fr) minmax(0,1.2fr);gap:8px}
+.lot .in3>div{min-width:0}
+.lot .in3 input,.lot .in3 select{width:100%}
+.lotres{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:10px}
+.lr{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--panel)}
+.lr.buy{border-top:4px solid var(--taka)} .lr.sell{border-top:4px solid var(--yasu)}
+.lr .t{font-size:12px;color:var(--sub)}
+.lr .big{font-size:24px;font-weight:900;line-height:1.2}.lr .sub{font-size:12px;color:var(--sub);margin-bottom:4px}.lr .row2 span{white-space:nowrap}
+@media (max-width:520px){.lotres{grid-template-columns:1fr}}
+.lr .row2{font-size:12px;color:var(--sub);display:flex;justify-content:space-between;gap:6px}
+.lr .row2 b{color:var(--ink);font-weight:700}
+.lotnote{font-size:12px;margin-top:8px;padding:5px 9px;border-radius:7px;border-left:4px solid var(--neutral);background:var(--panel)}
+.lotnote.stop{border-left-color:var(--yasu)} .lotnote.care{border-left-color:var(--warn)} .lotnote.ok{border-left-color:#2E9E5B}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.two>div{min-width:0}.rng input,.rng select{max-width:100%}
 
 </style>
@@ -195,6 +211,31 @@ details.rset{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
       <div class="pc sell"><div class="t">売り検討帯</div><div class="v num" id="pSell">---</div><div class="s num" id="pSellStop">損切り ---</div></div>
     </div>
     <div class="stats num" id="rStats"></div>
+    <div class="lot">
+      <h3>枚数の計算</h3><p class="note" style="margin:0 0 4px">損切りで失う額が資金の◯%に収まる枚数を出します。</p>
+      <div class="in3">
+        <div><label class="f" for="lCap">口座資金（円）</label><input type="text" id="lCap" inputmode="numeric" placeholder="1000000"></div>
+        <div><label class="f" for="lRisk">リスク%</label>
+          <select id="lRisk"><option value="0.5">0.5%</option><option value="1" selected>1%</option><option value="1.5">1.5%</option><option value="2">2%</option><option value="3">3%</option><option value="5">5%</option></select></div>
+        <div><label class="f" for="lUnit">1枚</label>
+          <select id="lUnit"><option value="1000">1,000通貨</option><option value="10000" selected>1万通貨</option></select></div>
+      </div>
+      <div class="lotres">
+        <div class="lr buy"><div class="t">買い（検討帯の中央で入る）</div><div class="big num" id="lBuyLots">---</div><div class="sub num" id="lBuyUnits"></div>
+          <div class="row2"><span>入る</span><b class="num" id="lBuyIn">---</b></div>
+          <div class="row2"><span>損切り幅</span><b class="num" id="lBuyW">---</b></div>
+          <div class="row2"><span>損切り時</span><b class="num" id="lBuyLoss">---</b></div>
+          <div class="row2"><span>中心で利確時</span><b class="num" id="lBuyGain">---</b></div>
+          <div class="row2"><span>損益比率</span><b class="num" id="lBuyRR">---</b></div></div>
+        <div class="lr sell"><div class="t">売り（検討帯の中央で入る）</div><div class="big num" id="lSellLots">---</div><div class="sub num" id="lSellUnits"></div>
+          <div class="row2"><span>入る</span><b class="num" id="lSellIn">---</b></div>
+          <div class="row2"><span>損切り幅</span><b class="num" id="lSellW">---</b></div>
+          <div class="row2"><span>損切り時</span><b class="num" id="lSellLoss">---</b></div>
+          <div class="row2"><span>中心で利確時</span><b class="num" id="lSellGain">---</b></div>
+          <div class="row2"><span>損益比率</span><b class="num" id="lSellRR">---</b></div></div>
+      </div>
+      <div class="lotnote" id="lNote">口座資金を入れると、損切りラインまでの幅から枚数を計算します。</div>
+    </div>
     <ul class="warns" id="rWarns"></ul>
 
     <details class="lv">
@@ -710,6 +751,46 @@ $("rPush").checked = S.get("rPush", false);
   .forEach(([id,k,fn]) => $(id).addEventListener("change", () => { S.set(k, fn($(id).value)); compute(); }));
 $("rPush").addEventListener("change", () => S.set("rPush", $("rPush").checked));
 
+/* ---------- 枚数計算 ---------- */
+$("lCap").value = S.get("lCap","");
+$("lRisk").value = String(S.get("lRisk",1));
+$("lUnit").value = String(S.get("lUnit",10000));
+["lCap","lRisk","lUnit"].forEach(id => $(id).addEventListener("input", () => {
+  S.set("lCap", $("lCap").value.replace(/[^\d]/g,"")); S.set("lRisk", +$("lRisk").value); S.set("lUnit", +$("lUnit").value); lotCalc();
+}));
+["lRisk","lUnit"].forEach(id => $(id).addEventListener("change", () => $(id).dispatchEvent(new Event("input"))));
+const yen = v => Math.round(v).toLocaleString("ja-JP") + "円";
+function lotCalc(){
+  const cap = parseFloat(String($("lCap").value).replace(/[^\d.]/g,""));
+  const risk = +$("lRisk").value, unit = +$("lUnit").value;
+  const note = $("lNote");
+  const blank = () => ["Buy","Sell"].forEach(k => ["Lots","In","W","Loss","Gain","RR","Units"].forEach(f => $("l"+k+f).textContent = f==="Units" ? "" : "---"));
+  if(!P){ blank(); note.className = "lotnote"; note.textContent = "先に「今日のレンジを計算」を押してください。"; return; }
+  if(!isFinite(cap) || cap <= 0){ blank(); note.className = "lotnote"; note.textContent = "口座資金を入れると、損切りラインまでの幅から枚数を計算します。"; return; }
+  const allow = cap * risk / 100;
+  const side = (k, entry, stopv, target) => {
+    const w = Math.abs(entry - stopv), g = Math.abs(target - entry);
+    const units = Math.floor(allow / w / unit) * unit;
+    const lots = units / unit;
+    $("l"+k+"In").textContent = f2(entry);
+    $("l"+k+"W").textContent = Math.round(w*100) + "銭";
+    $("l"+k+"Lots").textContent = lots.toLocaleString("ja-JP") + "枚";
+    $("l"+k+"Units").textContent = lots > 0 ? units.toLocaleString("ja-JP") + "通貨" : "";
+    $("l"+k+"Loss").textContent = lots > 0 ? "−" + yen(units * w) : "---";
+    $("l"+k+"Gain").textContent = lots > 0 ? "＋" + yen(units * g) : "---";
+    $("l"+k+"RR").textContent = (g / w).toFixed(2);
+    return {lots, rr:g/w};
+  };
+  const b = side("Buy", (P.buyLo+P.buyHi)/2, P.buyStop, P.mid);
+  const sl = side("Sell", (P.sellLo+P.sellHi)/2, P.sellStop, P.mid);
+  const rr = Math.min(b.rr, sl.rr), need = Math.round(100/(1+rr));
+  let cls = "ok", msg = `損切りにかかっても失うのは資金の${risk}%（${yen(allow)}）までです。損益比率${rr.toFixed(2)}なら、トントンの勝率は約${need}%です。`;
+  if(b.lots === 0 || sl.lots === 0){ cls = "stop"; msg = `資金${risk}%（${yen(allow)}）では1枚分の損切り幅をまかなえません。資金かリスク%を上げるか、1枚の単位を1,000通貨にしてください。`; }
+  else if(risk >= 3){ cls = "stop"; msg = `リスク${risk}%は破産確率が高くなる水準です。10連敗で資金は約${Math.round((1-risk/100)**10*100)}%になります。1〜2%を目安にしてください。`; }
+  else if(risk > 2){ cls = "care"; msg += " リスクはやや高めです。"; }
+  note.className = "lotnote " + cls; note.textContent = msg;
+}
+
 /* ---------- 時刻 ---------- */
 function jstParts(ms){ const d = new Date(ms + JST); return {y:d.getUTCFullYear(), m:d.getUTCMonth(), d:d.getUTCDate(), h:d.getUTCHours(), mi:d.getUTCMinutes(), wd:d.getUTCDay()}; }
 function nthSunday(y, m, n){ const first = new Date(Date.UTC(y, m, 1)).getUTCDay(); return 1 + ((7-first)%7) + 7*(n-1); }
@@ -944,7 +1025,7 @@ function judge(now){
 function setStatus(m, err){ $("rStatus").textContent = m; $("rStatus").style.color = err ? "var(--yasu)" : ""; }
 
 function render(){
-  if(!P){ $("rSig").className = "sig off"; $("rSig").textContent = "未計算"; return; }
+  if(!P){ $("rSig").className = "sig off"; $("rSig").textContent = "未計算"; lotCalc(); return; }
   const stop = P.warns.some(w=>w.lv==="stop"), care = P.warns.some(w=>w.lv==="care");
   $("rSig").className = "sig " + (stop ? "stop" : care ? "care" : "go");
   $("rSig").textContent = stop ? "● 見送り推奨" : care ? "● 注意して取引" : "● レンジ向き";
@@ -1005,6 +1086,7 @@ function render(){
     const cls = [l.cur?"cur":"", !l.cur && (inS||inB) ? "hot":"", inS?"in-sell":"", inB?"in-buy":""].join(" ");
     return `<tr class="${cls}"><td>${esc(l.name)}</td><td>${f2(l.v)}</td></tr>`;
   }).join("");
+  lotCalc();
 }
 
 /* ---------- 通知 ---------- */
